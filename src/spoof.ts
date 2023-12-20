@@ -110,16 +110,14 @@ export const getRandomPagePoint = async (page: Page): Promise<Vector> => {
 
 // Using this method to get correct position of Inline elements (elements like <a>)
 const getElementBox = async (
-    page: Page,
     element: ElementHandle,
-    relativeToMainFrame: boolean = true
 ): Promise<BoundingBox | null> => {
     const box = await element.boundingBox()
     return (box != null) ? { x: box.x, y: box.y, width: box.width, height: box.height } : null
 }
 
-export function path(point: Vector, target: Vector, optionsOrSpread?: number | PathOptions)
-export function path(point: Vector, target: BoundingBox, optionsOrSpread?: number | PathOptions)
+export function path(point: Vector, target: Vector, optionsOrSpread?: number | PathOptions): Vector[]
+export function path(point: Vector, target: BoundingBox, optionsOrSpread?: number | PathOptions): Vector[]
 export function path(start: Vector, end: BoundingBox | Vector, optionsOrSpread?: number | PathOptions): Vector[] {
     const spreadOverride = typeof optionsOrSpread === 'number' ? optionsOrSpread : optionsOrSpread?.spreadOverride
     const moveSpeed = typeof optionsOrSpread === 'object' && optionsOrSpread.moveSpeed
@@ -164,7 +162,7 @@ const boundingBoxWithFallback = async (
     page: Page,
     elem: ElementHandle<Element>
 ): Promise<BoundingBox> => {
-    let box = await getElementBox(page, elem)
+    let box = await getElementBox(elem)
     if (box == null) {
         box = await page.evaluate(el => {
             const rect = el.getBoundingClientRect()

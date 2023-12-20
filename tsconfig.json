@@ -29,17 +29,15 @@
       "noImplicitAny": false,
       // "noUnusedLocals": true,
       // "noUnusedParameters": true,
-      "allowImportingTsExtensions": true, // Change module resolution to bundler later
-      "emitDeclarationOnly": true, // will not output JS but necessary for .mts imports
       "declaration": true,
    
   },
   "include": [
-    "/src"
+    "src/**/*",
   ],
   "exclude": [
       "**/node_modules",
-      "lib",
+      "lib/**/*",
       "*.js",
   ],
   "plugins": [
