@@ -1,31 +1,38 @@
-import { Page } from 'puppeteer'
+import { test as baseTest, Page, Browser } from '@playwright/test'
 import { createCursor, GhostCursor } from '../spoof'
 import { join } from 'path'
 import { promises as fs } from 'fs'
 import installMouseHelper from '../mouse-helper'
 
-declare const page: Page
-
 let cursor: GhostCursor
 
-describe('Mouse movements', () => {
-  beforeAll(async () => {
-    await installMouseHelper(page)
-    const html = await fs.readFile(join(__dirname, 'custom-page.html'), 'utf8')
-    await page.goto('data:text/html,' + encodeURIComponent(html), {
-      waitUntil: 'networkidle2'
-    })
-  })
-
-  it('Should click on the element without throwing an error (CSS selector)', async () => {
-    cursor = createCursor(page)
-    await cursor.click('#box')
-  })
-
-  it('Should click on the element without throwing an error (XPath selector)', async () => {
-    cursor = createCursor(page)
-    await cursor.click('//*[@id="box"]')
-  })
+// Extending the test fixture to include the browser object and renaming it to avoid conflict
+const extendedTest = baseTest.extend<{ page: Page, browser: Browser }>({
+    page: async ({ page }, use) => {
+        // Install mouse helper before each test
+        await installMouseHelper(page)
+        await use(page)
+    }
 })
 
-jest.setTimeout(15_000)
+extendedTest.describe('Mouse movements', () => {
+    extendedTest('Should click on the element without throwing an error (CSS selector)', async ({ page, browser }) => {
+        const html = await fs.readFile(join(__dirname, 'custom-page.html'), 'utf8')
+        await page.goto(`data:text/html,${encodeURIComponent(html)}`, {
+            waitUntil: 'networkidle'
+        })
+        cursor = createCursor(browser, page) // Passing the browser object
+        await cursor.click('#box')
+    })
+
+    extendedTest('Should click on the element without throwing an error (XPath selector)', async ({ page, browser }) => {
+        const html = await fs.readFile(join(__dirname, 'custom-page.html'), 'utf8')
+        await page.goto(`data:text/html,${encodeURIComponent(html)}`, {
+            waitUntil: 'networkidle'
+        })
+        cursor = createCursor(browser, page) // Passing the browser object
+        await cursor.click('//*[@id="box"]')
+    })
+})
+
+extendedTest.setTimeout(15000)
