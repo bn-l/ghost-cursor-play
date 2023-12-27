@@ -117,11 +117,64 @@ export const getRandomPagePoint = async (page: Page): Promise<Vector> => {
 }
 
 // Using this method to get correct position of Inline elements (elements like <a>)
+// const getElementBox = async (
+//     locator: Locator,
+// ): Promise<BoundingBox | null> => {
+//     const box = await locator.boundingBox()
+//     return (box != null) ? { x: box.x, y: box.y, width: box.width, height: box.height } : null
+// }
+
+
 const getElementBox = async (
+    page: Page,
     locator: Locator,
+    cdpClient: CDPSession,
+    relativeToMainFrame: boolean = true
 ): Promise<BoundingBox | null> => {
-    const box = await locator.boundingBox()
-    return (box != null) ? { x: box.x, y: box.y, width: box.width, height: box.height } : null
+
+    const element = await locator.elementHandle();
+    const objectId = await getObjectId(page, locator, cdpClient);
+    if (objectId === undefined) {
+        return null;
+    }
+
+    try {
+        const quads = await cdpClient.send('DOM.getContentQuads', {
+            objectId
+        })
+
+        const elementBox = {
+            x: quads.quads[0]![0]!,
+            y: quads.quads[0]![1]!,
+            width: quads.quads[0]![4]! - quads.quads[0]![0]!,
+            height: quads.quads[0]![5]! - quads.quads[0]![1]!
+        }
+        if (!relativeToMainFrame) {
+            const elementFrame = await element?.contentFrame();
+            const iframes =
+                elementFrame != null
+                    ? await element?.$$('//iframe')
+                    : null
+            let frame: ElementHandle<Node> | undefined
+            if (iframes != null) {
+                for (const iframe of iframes) {
+                    if ((await iframe.contentFrame()) === elementFrame) frame = iframe
+                }
+            }
+            if (frame != null) {
+                const boundingBox = await frame.boundingBox()
+                elementBox.x =
+                    boundingBox !== null ? elementBox.x - boundingBox.x : elementBox.x
+                elementBox.y =
+                    boundingBox !== null ? elementBox.y - boundingBox.y : elementBox.y
+            }
+        }
+        element?.dispose()
+        return elementBox
+    } catch (_) {
+        log('Quads not found, trying regular boundingBox')
+        return await element?.boundingBox()!;
+    }
 }
 
 export function path(point: Vector, target: Vector, optionsOrSpread?: number | PathOptions): Vector[]
@@ -167,9 +220,11 @@ const intersectsElement = (vec: Vector, box: BoundingBox): boolean => {
 }
 
 const boundingBoxWithFallback = async (
-    locator: Locator
+    page: Page,
+    locator: Locator,
+    cdpClient: CDPSession,
 ): Promise<BoundingBox> => {
-    let box = await getElementBox(locator)
+    let box = await getElementBox(page, locator, cdpClient)
     if (box == null) {
         const handle = await locator.elementHandle();
         box = await handle?.evaluate((el: Element) => {
@@ -339,7 +394,7 @@ export const createCursor = (
                     }
                 }
 
-                const box = await boundingBoxWithFallback(locator)
+                const box = await boundingBoxWithFallback(page, locator, cdpClient)
                 const { height, width } = box
                 const destination = getRandomBoxPoint(box, options)
                 const dimensions = { height, width }
@@ -365,7 +420,7 @@ export const createCursor = (
 
                 actions.toggleRandomMove(true)
 
-                const newBoundingBox = await boundingBoxWithFallback(locator)
+                const newBoundingBox = await boundingBoxWithFallback(page, locator, cdpClient)
 
                 // It's possible that the element that is being moved towards
                 // has moved to a different location by the time
