@@ -1,8 +1,11 @@
 {
     "name": "ghost-cursor-play",
-    "version": "1.1.19",
+    "version": "1.1.19.1",
     "description": "Playwright fork tracking upstream ghost-cursor package. Move your mouse like a human in puppeteer or generate realistic movements on any 2D plane",
-    "repository": "https://github.com/Xetera/ghost-cursor",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/bn-l/ghost-cursor-play.git"
+    },
     "main": "lib/spoof.js",
     "types": "lib/spoof.d.ts",
     "scripts": {
@@ -16,6 +19,9 @@
         "botting"
     ],
     "author": "Xetera",
+    "contributors": [
+        "bn-l"
+    ],
     "license": "ISC",
     "files": [
         "lib/**/*"
@@ -27,12 +33,13 @@
         "@types/node": "^20.10.5",
         "@typescript-eslint/eslint-plugin": "^6.15.0",
         "@typescript-eslint/parser": "^6.15.0",
-        "debug": "^4.3.4",
         "eslint": "^8.56.0",
         "playwright": "^1.40.1",
         "typescript": "^5.3.3"
     },
     "dependencies": {
+        "@medv/finder": "^3.1.0",
+        "@nastyox/rando.js": "^2.0.6",
         "bezier-js": "^6.1.4"
     }
 }

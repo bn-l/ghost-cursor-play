@@ -1,5 +1,7 @@
 // import { ElementHandle, Page, BoundingBox, CDPSession } from 'puppeteer'
-import { ElementHandle, Page, Browser } from 'playwright'
+import { ElementHandle, Page, Browser, Locator, CDPSession } from 'playwright'
+import { rando } from '@nastyox/rando.js';
+import fs from 'fs'
 
 import debug from 'debug'
 import {
@@ -46,11 +48,11 @@ export interface PathOptions {
 export interface GhostCursor {
     toggleRandomMove: (random: boolean) => void
     click: (
-        selector?: string | ElementHandle,
+        selector?: string | Locator,
         options?: ClickOptions
     ) => Promise<void>
     move: (
-        selector: string | ElementHandle,
+        selector: string | Locator,
         options?: MoveOptions
     ) => Promise<void>
     moveTo: (destination: Vector) => Promise<void>
@@ -90,9 +92,15 @@ const getRandomBoxPoint = (
     }
 
     return {
-        x: x + paddingWidth / 2 + Math.random() * (width - paddingWidth),
-        y: y + paddingHeight / 2 + Math.random() * (height - paddingHeight)
+        x: x + paddingWidth / 2 + rando() * (width - paddingWidth),
+        y: y + paddingHeight / 2 + rando() * (height - paddingHeight)
     }
+}
+
+// The function signature to access the internal CDP client changed in puppeteer 14.4.1
+
+export const getCDPClient = async (page: Page): Promise<CDPSession> => {
+    return await page.context().newCDPSession(page);
 }
 
 // Get a random point on a browser window
@@ -110,9 +118,9 @@ export const getRandomPagePoint = async (page: Page): Promise<Vector> => {
 
 // Using this method to get correct position of Inline elements (elements like <a>)
 const getElementBox = async (
-    element: ElementHandle,
+    locator: Locator,
 ): Promise<BoundingBox | null> => {
-    const box = await element.boundingBox()
+    const box = await locator.boundingBox()
     return (box != null) ? { x: box.x, y: box.y, width: box.width, height: box.height } : null
 }
 
@@ -128,7 +136,7 @@ export function path(start: Vector, end: BoundingBox | Vector, optionsOrSpread?:
     const curve = bezierCurve(start, end, spreadOverride)
     const length = curve.length() * 0.8
 
-    const speed = typeof moveSpeed === 'number' ? (25 / moveSpeed) : Math.random()
+    const speed = typeof moveSpeed === 'number' ? (25 / moveSpeed) : rando()
     const baseTime = speed * minSteps
     const steps = Math.ceil((Math.log2(fitts(length, width) + 1) + baseTime) * 3)
     const re = curve.getLUT(steps)
@@ -159,19 +167,45 @@ const intersectsElement = (vec: Vector, box: BoundingBox): boolean => {
 }
 
 const boundingBoxWithFallback = async (
-    page: Page,
-    elem: ElementHandle<Element>
+    locator: Locator
 ): Promise<BoundingBox> => {
-    let box = await getElementBox(elem)
+    let box = await getElementBox(locator)
     if (box == null) {
-        box = await page.evaluate(el => {
+        const handle = await locator.elementHandle();
+        box = await handle?.evaluate((el: Element) => {
             const rect = el.getBoundingClientRect()
-            return { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
-        }, elem)
+            const box = { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
+            return box
+        }, locator)!
+        handle?.dispose()
     }
-
     return box
 }
+
+
+export const getObjectId = async (
+    page: Page,
+    locator: Locator,
+    cdpClient: CDPSession
+): Promise<string | undefined> => {
+   
+    const selector = locator['_selector'];
+
+    let expression: string;
+
+    if (selector.startsWith("//")) {
+        expression = `document.evaluate(${JSON.stringify(selector)}, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue`;
+    } else {
+        expression = `document.querySelector(${JSON.stringify(selector)})`;
+    }
+    // Get the objectid with the cdpClient
+    const { result: remoteObject } = await cdpClient.send('Runtime.evaluate', {
+        expression: expression,
+        returnByValue: false
+    });
+    return remoteObject?.objectId;
+}
+
 
 export const createCursor = (
     browser: Browser,
@@ -219,9 +253,9 @@ export const createCursor = (
                 previous = rand
             }
             if (options?.moveDelay !== undefined && options.moveDelay >= 0) {
-                await delay(Math.random() * options.moveDelay)
+                await delay(rando() * options.moveDelay)
             } else {
-                await delay(Math.random() * 2000) // 2s by default
+                await delay(rando() * 2000) // 2s by default
             }
             randomMove().then(
                 (_) => { },
@@ -238,7 +272,7 @@ export const createCursor = (
         },
 
         async click(
-            selector?: string | ElementHandle,
+            selector?: string | Locator,
             options?: ClickOptions
         ): Promise<void> {
             actions.toggleRandomMove(false)
@@ -259,44 +293,53 @@ export const createCursor = (
             }
 
             if (options?.moveDelay !== undefined && options.moveDelay >= 0) {
-                await delay(Math.random() * options.moveDelay)
+                await delay(rando() * options.moveDelay)
             } else {
-                await delay(Math.random() * 2000) // 2s by default
+                await delay(rando() * 2000) // 2s by default
             }
 
             actions.toggleRandomMove(true)
         },
+
         async move(
-            selector: string | ElementHandle,
+            selector: string | Locator,
             options?: MoveOptions
         ): Promise<void> {
             const go = async (iteration: number): Promise<void> => {
                 if (iteration > (options?.maxTries ?? 10)) {
                     throw Error('Could not mouse-over element within enough tries')
                 }
-
                 actions.toggleRandomMove(false)
-                let elem: ElementHandle<Element> | null = null
+
+                let locator: Locator;
                 if (typeof selector === 'string') {
                     if (options?.waitForSelector !== undefined) {
                         await page.waitForSelector(selector, {
                             timeout: options.waitForSelector
-                        })
+                        });
                     }
-                    elem = await page.$(selector)
-                    if (elem === null) {
-                        throw new Error(
-                            `Could not find element with selector "${selector}", make sure you're waiting for the elements with "page.waitForSelector"`
-                        )
-                    }
+                    locator = page.locator(selector); 
                 } else {
-                    // ElementHandle
-                    elem = selector as ElementHandle<Element>
+                    locator = (selector as Locator); 
                 }
 
-                // Make sure the object is in view
-                await elem.scrollIntoViewIfNeeded()
-                const box = await boundingBoxWithFallback(page, elem)
+                const cdpClient = await getCDPClient(page);
+                const objectId = await getObjectId(page, locator, cdpClient);
+
+                if (objectId) {
+                    try {
+                        await cdpClient.send('DOM.scrollIntoViewIfNeeded', {
+                            objectId
+                        });
+                    } catch (e) {
+                        // use regular JS scroll method as a fallback
+                        console.log('Falling back to JS scroll method', e);
+                        await locator.evaluate((e: Element) => e.scrollIntoView({ block: 'center' }));
+                        await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait a bit until the scroll has finished
+                    }
+                }
+
+                const box = await boundingBoxWithFallback(locator)
                 const { height, width } = box
                 const destination = getRandomBoxPoint(box, options)
                 const dimensions = { height, width }
@@ -322,7 +365,7 @@ export const createCursor = (
 
                 actions.toggleRandomMove(true)
 
-                const newBoundingBox = await boundingBoxWithFallback(page, elem)
+                const newBoundingBox = await boundingBoxWithFallback(locator)
 
                 // It's possible that the element that is being moved towards
                 // has moved to a different location by the time

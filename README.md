@@ -10,12 +10,29 @@ like the definitely-not-robot you are.
 ## Installation
 
 ```sh
-yarn add ghost-cursor
+npm add ghost-cursor-play
 ```
-or with npm
-```sh
-npm install ghost-cursor
+
+## Usage with playwright:
+
+```js
+import { createCursor } from "ghost-cursor-play"
+import playwright from "playwright"
+
+const run = async (url) => {
+  const selector = "#sign-up button"
+  const browser = await puppeteer.launch({ headless: false });
+  const page = await browser.newPage()
+  const cursor = createCursor(page)
+  await page.goto(url)
+  await page.waitForSelector(selector)
+  await cursor.click(selector)
+  // shorthand for
+  // await cursor.move(selector)
+  // await cursor.click()
+}
 ```
+
 
 ## Usage
 Generating movement data between 2 coordinates.
@@ -40,25 +57,7 @@ const route = path(from, to)
  */
 ```
 
-Usage with puppeteer:
 
-```js
-import { createCursor } from "ghost-cursor"
-import puppeteer from "puppeteer"
-
-const run = async (url) => {
-  const selector = "#sign-up button"
-  const browser = await puppeteer.launch({ headless: false });
-  const page = await browser.newPage()
-  const cursor = createCursor(page)
-  await page.goto(url)
-  await page.waitForSelector(selector)
-  await cursor.click(selector)
-  // shorthand for
-  // await cursor.move(selector)
-  // await cursor.click()
-}
-```
 
 ### Puppeteer-specific behavior
 * `cursor.move()` will automatically overshoot or slightly miss and re-adjust for elements that are too far away
