@@ -7,7 +7,7 @@
 
 <img src="https://media2.giphy.com/media/26ufp2LYURTvL5PRS/giphy.gif" width="100" align="right">
 
-Generate realistic, human-like mouse movement data between coordinates or navigate between elements with puppeteer
+Generate realistic, human-like mouse movement data between coordinates or navigate between elements with playwright
 like the definitely-not-robot you are.
 
 > Oh yeah? Could a robot do _**this?**_
@@ -26,7 +26,7 @@ import playwright from "playwright"
 
 const run = async (url) => {
   const selector = "#sign-up button"
-  const browser = await puppeteer.launch({ headless: false });
+  const browser = await playwright.launch({ headless: false });
   const page = await browser.newPage()
   const cursor = createCursor(page)
   await page.goto(url)
@@ -64,7 +64,7 @@ const route = path(from, to)
 
 
 
-### Puppeteer-specific behavior
+### Playwright-specific behavior
 * `cursor.move()` will automatically overshoot or slightly miss and re-adjust for elements that are too far away
 from the cursor's starting point.
 * When moving over objects, a random coordinate that's within the element will be selected instead of
