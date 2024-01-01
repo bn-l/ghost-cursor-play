@@ -1,3 +1,8 @@
+# !!! WARNING !!!
+
+### This package does replicate the ghost cursor code in playwright, however, for reasons unknown to me it still trips bot detection on the site I benchmark on whereas ghost-cursor does not. I think this is a playwright thing. It it not useable in its current state.
+
+
 # Ghost Cursor
 
 <img src="https://media2.giphy.com/media/26ufp2LYURTvL5PRS/giphy.gif" width="100" align="right">
